@@ -1,0 +1,887 @@
+diff --git a/kern/env.c b/kern/env.c
+index 239acad..787145e 100644
+--- a/kern/env.c
++++ b/kern/env.c
+@@ -252,7 +252,7 @@ env_alloc(struct Env **newenv_store, envid_t parent_id)
+ 
+ 	// Enable interrupts while in user mode.
+ 	// LAB 4: Your code here.
+-	e->env_tf.tf_eflags = e->env_tf.tf_eflags | FL_IF;
++
+ 	// Clear the page fault handler until user installs one.
+ 	e->env_pgfault_upcall = 0;
+ 
+@@ -544,7 +544,6 @@ env_run(struct Env *e)
+ 
+ 	lcr3(PADDR(curenv->env_pgdir));
+ 
+-	unlock_kernel();
+ 	env_pop_tf(&(curenv->env_tf));
+ 
+ 	//panic("env_run not yet implemented");
+diff --git a/kern/init.c b/kern/init.c
+index 096805d..3c83f7d 100644
+--- a/kern/init.c
++++ b/kern/init.c
+@@ -50,7 +50,7 @@ i386_init(void)
+ 
+ 	// Acquire the big kernel lock before waking up APs
+ 	// Your code here:
+-	lock_kernel();
++
+ 	// Starting non-boot CPUs
+ 	boot_aps();
+ 
+@@ -68,18 +68,14 @@ i386_init(void)
+ 		ENV_CREATE(TEST, ENV_TYPE_USER);
+ #else
+ 	// Touch all you want.
+-	/*ENV_CREATE(user_hello, ENV_TYPE_USER);
+ 	ENV_CREATE(user_hello, ENV_TYPE_USER);
+-	ENV_CREATE(user_hello, ENV_TYPE_USER);*/
+-	/*ENV_CREATE(user_yield, ENV_TYPE_USER);
+-	ENV_CREATE(user_yield, ENV_TYPE_USER);
+-	ENV_CREATE(user_yield, ENV_TYPE_USER);*/
+-	ENV_CREATE(user_yield, ENV_TYPE_USER);
++	ENV_CREATE(user_hello, ENV_TYPE_USER);
++	ENV_CREATE(user_hello, ENV_TYPE_USER);
+ #endif // TEST*
+ 
+ 	// Eliminar esta llamada una vez completada la parte 1
+ 	// e implementado sched_yield().
+-	//env_run(&envs[0]);
++	env_run(&envs[0]);
+ 
+ 	// Schedule and run the first user environment!
+ 	sched_yield();
+@@ -135,10 +131,9 @@ mp_main(void)
+ 	// only one CPU can enter the scheduler at a time!
+ 	//
+ 	// Your code here:
+-	lock_kernel();
+-	sched_yield();
++
+ 	// Remove this after you finish Exercise 4
+-	//for (;;);
++	for (;;);
+ }
+ 
+ /*
+diff --git a/kern/mpentry.S b/kern/mpentry.S
+index 3c5508c..72dd827 100644
+--- a/kern/mpentry.S
++++ b/kern/mpentry.S
+@@ -64,10 +64,6 @@ start32:
+ 	# we are still running at a low EIP.
+ 	movl    $(RELOC(entry_pgdir)), %eax
+ 	movl    %eax, %cr3
+-	#enables large pages
+-	movl	%cr4, %eax
+-	orl	$(CR4_PSE), %eax
+-	movl	%eax, %cr4
+ 	# Turn on paging.
+ 	movl    %cr0, %eax
+ 	orl     $(CR0_PE|CR0_PG|CR0_WP), %eax
+diff --git a/kern/pmap.c b/kern/pmap.c
+index 7911b97..c24e8c2 100644
+--- a/kern/pmap.c
++++ b/kern/pmap.c
+@@ -233,12 +233,14 @@ mem_init(void)
+ 	// Permissions: kernel RW, user NONE
+ 	// Your code goes here:
+ 
++<<<<<<< HEAD
+ 	//~KERNBASE + 1 = ~(0xf0000000) + 1 = 0x0fffffff + 1 = 0x10000000
+ 
+ 	boot_map_region(kern_pgdir, KERNBASE, ~KERNBASE + 1, 0, PTE_W | PTE_P);
+-
++=======
+ 	// Initialize the SMP-related parts of the memory map
+ 	mem_init_mp();
++>>>>>>> origin/tp3
+ 
+ 	// Check that the initial page directory has been set up correctly.
+ 	check_kern_pgdir();
+@@ -287,9 +289,6 @@ mem_init_mp(void)
+ 	//     Permissions: kernel RW, user NONE
+ 	//
+ 	// LAB 4: Your code here:
+-	for (int i = 0; i < NCPU; ++i) {
+-		boot_map_region(kern_pgdir, KSTACKTOP - i * (KSTKSIZE + KSTKGAP) - KSTKSIZE, KSTKSIZE, PADDR(percpu_kstacks[i]), PTE_W | PTE_P);
+-	}
+ }
+ 
+ // --------------------------------------------------------------
+@@ -328,17 +327,9 @@ page_init(void)
+ 	// Change the code to reflect this.
+ 	// NB: DO NOT actually touch the physical memory corresponding to
+ 	// free pages!
+-	_Static_assert(MPENTRY_PADDR % PGSIZE == 0,
+-               "MPENTRY_PADDR is not page-aligned");
+-
+ 	size_t i;
+ 
+-	size_t mpentry = PGNUM(MPENTRY_PADDR);
+-
+ 	for (i = 1; i < npages_basemem; i++) {
+-		if (i == mpentry)
+-			continue;
+-
+ 		pages[i].pp_link = page_free_list;
+ 		page_free_list = &pages[i];
+ 	}
+@@ -346,9 +337,6 @@ page_init(void)
+ 	i = PGNUM(PADDR(boot_alloc(0)));
+ 
+ 	for (; i < npages; i++) {
+-		if (i == mpentry)
+-			continue;
+-
+ 		pages[i].pp_link = page_free_list;
+ 		page_free_list = &pages[i];		
+ 	}
+@@ -705,18 +693,7 @@ mmio_map_region(physaddr_t pa, size_t size)
+ 	// Hint: The staff solution uses boot_map_region.
+ 	//
+ 	// Your code here:
+-	size = ROUNDUP(size, PGSIZE);
+-
+-	assert(base + size < MMIOLIM);
+-
+-	boot_map_region(kern_pgdir, base, size, pa, PTE_PCD | PTE_PWT | PTE_W);
+-
+-	uintptr_t base_ret = base;
+-
+-	base += size;
+-
+-	return (void*) base_ret;
+-	//panic("mmio_map_region not implemented");
++	panic("mmio_map_region not implemented");
+ }
+ 
+ static uintptr_t user_mem_check_addr;
+diff --git a/kern/sched.c b/kern/sched.c
+index 3a8be90..7726e32 100644
+--- a/kern/sched.c
++++ b/kern/sched.c
+@@ -29,26 +29,7 @@ sched_yield(void)
+ 	// below to halt the cpu.
+ 
+ 	// LAB 4: Your code here.
+-	size_t start;
+-	size_t next;
+ 
+-	start = (curenv == NULL) ? 0 : ENVX(curenv->env_id);
+-	next = start;
+-
+-	do {
+-		idle = envs + next;
+-
+-		if (idle->env_status == ENV_RUNNABLE) {
+-			env_run(idle);
+-		}
+-
+-		next = (next + 1 >= NENV) ? 0 : next + 1;	
+-	} while (start != next);
+-
+-	//If we arrived here, it means that there are no other runnable processes
+-	//Check that curenv is running
+-	if (curenv && curenv->env_status == ENV_RUNNING)
+-		env_run(curenv);
+ 	// sched_halt never returns
+ 	sched_halt();
+ }
+diff --git a/kern/syscall.c b/kern/syscall.c
+index f81a5d1..a0a2622 100644
+--- a/kern/syscall.c
++++ b/kern/syscall.c
+@@ -84,19 +84,7 @@ sys_exofork(void)
+ 	// will appear to return 0.
+ 
+ 	// LAB 4: Your code here.
+-	struct Env* e;
+-	int ret;
+-
+-	if ((ret = env_alloc(&e, curenv->env_id)) < 0) 
+-		return ret;
+-
+-	e->env_status = ENV_NOT_RUNNABLE;
+-
+-	//memcpy((void*) &e->env_tf, (void*) &curenv->env_tf, sizeof(struct Trapframe));
+-	e->env_tf = curenv->env_tf;
+-	e->env_tf.tf_regs.reg_eax = 0;
+-
+-	return e->env_id;
++	panic("sys_exofork not implemented");
+ }
+ 
+ // Set envid's env_status to status, which must be ENV_RUNNABLE
+@@ -116,20 +104,7 @@ sys_env_set_status(envid_t envid, int status)
+ 	// envid's status.
+ 
+ 	// LAB 4: Your code here.
+-	//panic("sys_env_set_status not implemented");
+-
+-	struct Env* e;
+-	int ret;
+-
+-	if ((ret = envid2env(envid, &e, true)) < 0)
+-		return ret;
+-
+-	if (status != ENV_NOT_RUNNABLE && status != ENV_RUNNABLE)
+-		return -E_INVAL;
+-
+-	e->env_status = status;
+-
+-	return 0;
++	panic("sys_env_set_status not implemented");
+ }
+ 
+ // Set the page fault upcall for 'envid' by modifying the corresponding struct
+@@ -144,15 +119,7 @@ static int
+ sys_env_set_pgfault_upcall(envid_t envid, void *func)
+ {
+ 	// LAB 4: Your code here.
+-	struct Env* e;
+-	int r;
+-
+-	if ((r = envid2env(envid, &e, true)) < 0)
+-		return r;
+-	
+-	e->env_pgfault_upcall = func;
+-	return 0;	
+-	//panic("sys_env_set_pgfault_upcall not implemented");
++	panic("sys_env_set_pgfault_upcall not implemented");
+ }
+ 
+ // Allocate a page of memory and map it at 'va' with permission
+@@ -182,28 +149,7 @@ sys_page_alloc(envid_t envid, void *va, int perm)
+ 	//   allocated!
+ 
+ 	// LAB 4: Your code here.
+-	//panic("sys_page_alloc not implemented");
+-
+-	struct Env* e;
+-	int ret;
+-    
+-	if ((ret = envid2env(envid, &e, 1)) < 0)
+-		return ret;
+-
+-	if ((uintptr_t)va >= UTOP || ((uintptr_t)va % PGSIZE) != 0 || (perm & PTE_SYSCALL) < perm)
+-		return -E_INVAL;
+-
+-	struct PageInfo* p = page_alloc(ALLOC_ZERO);
+-
+-	if (p == NULL)
+-		return -E_NO_MEM;
+-
+-	if ((ret = page_insert(e->env_pgdir, p, va, perm)) < 0) {
+-		page_free(p);
+-		return ret;
+-	}
+-
+-	return 0;
++	panic("sys_page_alloc not implemented");
+ }
+ 
+ // Map the page of memory at 'srcva' in srcenvid's address space
+@@ -233,41 +179,7 @@ sys_page_map(envid_t srcenvid, void *srcva, envid_t dstenvid, void *dstva, int p
+ 	//   check the current permissions on the page.
+ 
+ 	// LAB 4: Your code here.
+-	//panic("sys_page_map not implemented");
+-
+-	struct Env* src_e;
+-	struct Env* dst_e;
+-	int ret;
+-	pte_t* pte;
+-
+-	if ((ret = envid2env(srcenvid, &src_e, 1)) < 0)
+-		return ret;
+-
+-	if ((ret = envid2env(dstenvid, &dst_e, 1)) < 0)
+-		return ret;
+-
+-	if ((uintptr_t)srcva >= UTOP ||
+-		((uintptr_t)srcva % PGSIZE) != 0 ||
+-		(uintptr_t)dstva >= UTOP ||
+-		((uintptr_t)dstva % PGSIZE) != 0 ||
+-		(perm & PTE_SYSCALL) < perm)
+-		return -E_INVAL;
+-
+-	/*if ((pte = pgdir_walk(src_e->env_pgdir, srcva, false)) == NULL)
+-		return -E_INVAL;*/
+-
+-	struct PageInfo* p = page_lookup(src_e->env_pgdir, srcva, &pte);
+-
+-	if (pte == NULL)
+-		return -E_INVAL;
+-
+-	if (!(*pte & PTE_W) && (perm & PTE_W))
+-		return -E_INVAL;
+-
+-	if ((ret = page_insert(dst_e->env_pgdir, p, dstva, perm)) < 0)
+-		return ret;
+-
+-	return 0;
++	panic("sys_page_map not implemented");
+ }
+ 
+ // Unmap the page of memory at 'va' in the address space of 'envid'.
+@@ -283,20 +195,7 @@ sys_page_unmap(envid_t envid, void *va)
+ 	// Hint: This function is a wrapper around page_remove().
+ 
+ 	// LAB 4: Your code here.
+-	//panic("sys_page_unmap not implemented");
+-
+-	struct Env* e;
+-	int ret;
+-
+-	if ((ret = envid2env(envid, &e, 1)) < 0)
+-		return ret;
+-
+-	if ((uintptr_t)va >= UTOP || ((uintptr_t)va % PGSIZE) != 0)
+-		return -E_INVAL;
+-
+-	page_remove(e->env_pgdir, va);
+-
+-	return 0;
++	panic("sys_page_unmap not implemented");
+ }
+ 
+ // Try to send 'value' to the target env 'envid'.
+@@ -341,42 +240,7 @@ static int
+ sys_ipc_try_send(envid_t envid, uint32_t value, void *srcva, unsigned perm)
+ {
+ 	// LAB 4: Your code here.
+-	//
+-	struct Env* e;
+-	int ret;
+-
+-	if ((ret = envid2env(envid, &e, false)) == -E_BAD_ENV)
+-		return -E_BAD_ENV;
+-
+-	if (!e->env_ipc_recving)
+-		return -E_IPC_NOT_RECV;
+-
+-	if ((uintptr_t) srcva < UTOP) {
+-		pte_t* pte;
+-		pte = pgdir_walk(curenv->env_pgdir, srcva, false);
+-
+-		if (((uintptr_t) srcva) % PGSIZE != 0 
+-			|| (perm & PTE_SYSCALL) < perm
+-			|| !pa2page(*pte)
+-			|| ((perm & PTE_W) && !(*pte & PTE_W)))
+-			return -E_INVAL;
+-	
+-		if ((ret = page_insert(e->env_pgdir, pa2page(*pte), e->env_ipc_dstva, perm)) < 0)
+-			return -E_NO_MEM;
+-
+-		e->env_ipc_perm = perm;
+-	} else {
+-		e->env_ipc_perm = 0;
+-	}
+-
+-	e->env_ipc_recving = 0;
+-	e->env_ipc_from = curenv->env_id;
+-	e->env_ipc_value = value;
+-	e->env_status = ENV_RUNNABLE;
+-	e->env_tf.tf_regs.reg_eax = 0;
+-
+-	return 0;	
+-	//panic("sys_ipc_try_send not implemented");
++	panic("sys_ipc_try_send not implemented");
+ }
+ 
+ // Block until a value is ready.  Record that you want to receive
+@@ -394,14 +258,7 @@ static int
+ sys_ipc_recv(void *dstva)
+ {
+ 	// LAB 4: Your code here.
+-	if ((uintptr_t) dstva < UTOP && ((uintptr_t) dstva % PGSIZE) != 0)
+-		return -E_INVAL;
+-
+-	curenv->env_ipc_recving = true;
+-	curenv->env_ipc_dstva = dstva;
+-	curenv->env_status = ENV_NOT_RUNNABLE;
+-	sys_yield();
+-	//panic("sys_ipc_recv not implemented");
++	panic("sys_ipc_recv not implemented");
+ 	return 0;
+ }
+ 
+@@ -428,34 +285,6 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4,
+ 	case SYS_env_destroy:
+ 		return sys_env_destroy(a1);
+ 
+-	case SYS_yield:
+-		sys_yield();
+-		return 0;
+-
+-	case SYS_exofork:
+-		return sys_exofork();
+-
+-	case SYS_page_alloc:
+-		return sys_page_alloc((envid_t) a1, (void*) a2, a3);
+-
+-	case SYS_page_map:
+-		return sys_page_map((envid_t) a1, (void*) a2, (envid_t) a3, (void*) a4, a5);
+-
+-	case SYS_env_set_status:
+-		return sys_env_set_status((envid_t) a1, a2);
+-
+-	case SYS_page_unmap:
+-		return sys_page_unmap((envid_t) a1, (void*) a2);
+-
+-	case SYS_ipc_try_send:
+-		return sys_ipc_try_send((envid_t) a1, a2, (void*) a3, (unsigned) a4);
+-
+-	case SYS_ipc_recv:
+-		return sys_ipc_recv((void*) a1);
+-
+-	case SYS_env_set_pgfault_upcall:
+-		return sys_env_set_pgfault_upcall((envid_t) a1, (void*) a2);
+-
+ 	default:
+ 		return -E_INVAL;
+ 	}
+diff --git a/kern/trap.c b/kern/trap.c
+index 55d2b77..e5a15f6 100644
+--- a/kern/trap.c
++++ b/kern/trap.c
+@@ -90,7 +90,6 @@ trap_init(void)
+ 	void machineCheck();
+ 	void SIMDFloatingPointException();
+ 	void syscall_t();
+-	void irq_timer_t();
+ 
+ 	SETGATE(idt[T_DIVIDE], 0, GD_KT, divide_zero, 0);
+ 	SETGATE(idt[T_DEBUG], 0, GD_KT, debug, 0);
+@@ -111,7 +110,6 @@ trap_init(void)
+ 	SETGATE(idt[T_MCHK], 0, GD_KT, machineCheck, 0);
+ 	SETGATE(idt[T_SIMDERR], 0, GD_KT, SIMDFloatingPointException, 0);
+ 	SETGATE(idt[T_SYSCALL], 0, GD_KT, syscall_t, 3);
+-	SETGATE(idt[IRQ_OFFSET + IRQ_TIMER], 0, GD_KT, irq_timer_t, 0);
+ 	// Per-CPU setup
+ 	trap_init_percpu();
+ }
+@@ -142,30 +140,21 @@ trap_init_percpu(void)
+ 	// user space on that CPU.
+ 	//
+ 	// LAB 4: Your code here:
+-	int id = cpunum();
+-	struct CpuInfo *cpu = &cpus[id];
+-	struct Taskstate *ts = &cpu->cpu_ts;
+ 
+-	uint16_t idx = (GD_TSS0 >> 3) + id;
+-	uint16_t seg = idx << 3;
+ 	// Setup a TSS so that we get the right stack
+ 	// when we trap to the kernel.
+-	//ts.ts_esp0 = KSTACKTOP;
+-	ts->ts_esp0 = KSTACKTOP - id*(KSTKSIZE + KSTKSIZE);
+-	ts->ts_ss0 = GD_KD;
+-	ts->ts_iomb = sizeof(struct Taskstate);
++	ts.ts_esp0 = KSTACKTOP;
++	ts.ts_ss0 = GD_KD;
++	ts.ts_iomb = sizeof(struct Taskstate);
+ 
+ 	// Initialize the TSS slot of the gdt.
+-	/*gdt[GD_TSS0 >> 3] =
++	gdt[GD_TSS0 >> 3] =
+ 	        SEG16(STS_T32A, (uint32_t)(&ts), sizeof(struct Taskstate) - 1, 0);
+-	gdt[GD_TSS0 >> 3].sd_s = 0;*/
+-	gdt[idx] =
+-	        SEG16(STS_T32A, (uint32_t)(ts), sizeof(struct Taskstate) - 1, 0);
+-	gdt[idx].sd_s = 0;
++	gdt[GD_TSS0 >> 3].sd_s = 0;
++
+ 	// Load the TSS selector (like other segment selectors, the
+ 	// bottom three bits are special; we leave them 0)
+-	//ltr(GD_TSS0);
+-	ltr(seg);
++	ltr(GD_TSS0);
+ 
+ 	// Load the IDT
+ 	lidt(&idt_pd);
+@@ -222,6 +211,7 @@ trap_dispatch(struct Trapframe *tf)
+ {
+ 	// Handle processor exceptions.
+ 	// LAB 3: Your code here.
++<<<<<<< HEAD
+ 	if (tf->tf_trapno == T_BRKPT) {
+ 		monitor(tf);
+ 		return;
+@@ -238,6 +228,7 @@ trap_dispatch(struct Trapframe *tf)
+ 			tf->tf_regs.reg_ecx, tf->tf_regs.reg_ebx, tf->tf_regs.reg_edi, tf->tf_regs.reg_esi);
+ 		return;
+ 	}
++=======
+ 
+ 	// Handle spurious interrupts
+ 	// The hardware sometimes raises these because of noise on the
+@@ -251,11 +242,8 @@ trap_dispatch(struct Trapframe *tf)
+ 	// Handle clock interrupts. Don't forget to acknowledge the
+ 	// interrupt using lapic_eoi() before calling the scheduler!
+ 	// LAB 4: Your code here.
+-	if (tf->tf_trapno == IRQ_OFFSET + IRQ_TIMER) {
+-		lapic_eoi();
+-		sched_yield();
+-		return;
+-	}
++
++>>>>>>> origin/tp3
+ 	// Unexpected trap: The user process or the kernel has a bug.
+ 	print_trapframe(tf);
+ 	if (tf->tf_cs == GD_KT)
+@@ -292,7 +280,6 @@ trap(struct Trapframe *tf)
+ 		// Acquire the big kernel lock before doing any
+ 		// serious kernel work.
+ 		// LAB 4: Your code here.
+-		lock_kernel();
+ 		assert(curenv);
+ 
+ 		// Garbage collect if current enviroment is a zombie
+@@ -371,34 +358,6 @@ page_fault_handler(struct Trapframe *tf)
+ 	//   (the 'tf' variable points at 'curenv->env_tf').
+ 
+ 	// LAB 4: Your code here.
+-	if (curenv->env_pgfault_upcall) {
+-
+-		struct UTrapframe *u;
+-
+-		uintptr_t stack_top = UXSTACKTOP - sizeof(struct UTrapframe);
+-		
+-		if (UXSTACKTOP - PGSIZE < tf->tf_esp && tf->tf_esp < UXSTACKTOP) {
+-			stack_top = tf->tf_esp - sizeof(struct UTrapframe) - 4; //Leave an extra space
+-		}
+-
+-		user_mem_assert(curenv, (void*) stack_top, 1, PTE_U|PTE_W);
+-		//user_mem_assert(curenv, (void *)(stack_top - PGSIZE), PGSIZE, PTE_U | PTE_W);
+-
+-		u = (struct UTrapframe *) (stack_top);
+-
+-		u->utf_fault_va = fault_va;
+-		u->utf_err = tf->tf_err;
+-		u->utf_regs = tf->tf_regs;
+-		u->utf_eip = tf->tf_eip;
+-		u->utf_eflags = tf->tf_eflags;
+-		u->utf_esp = tf->tf_esp;
+-
+-		// Make the environment execute its pgfault handler
+-		curenv->env_tf.tf_eip = (uintptr_t) curenv->env_pgfault_upcall;
+-		curenv->env_tf.tf_esp = (uintptr_t) u;
+-
+-		env_run(curenv);
+-	}
+ 
+ 	// Destroy the environment that caused the fault.
+ 	cprintf("[%08x] user fault va %08x ip %08x\n",
+diff --git a/kern/trapentry.S b/kern/trapentry.S
+index ccdd1cc..7533ec6 100644
+--- a/kern/trapentry.S
++++ b/kern/trapentry.S
+@@ -67,7 +67,6 @@ TRAPHANDLER(alignmentCheck, T_ALIGN)
+ TRAPHANDLER_NOEC(machineCheck, T_MCHK)
+ TRAPHANDLER_NOEC(SIMDFloatingPointException, T_SIMDERR)
+ TRAPHANDLER_NOEC(syscall_t, T_SYSCALL)
+-TRAPHANDLER_NOEC(irq_timer_t, IRQ_TIMER + IRQ_OFFSET)
+ /*
+  * Lab 3: Your code here for _alltraps
+  */
+diff --git a/lib/fork.c b/lib/fork.c
+index 2d2ba99..d32749e 100644
+--- a/lib/fork.c
++++ b/lib/fork.c
+@@ -25,10 +25,6 @@ pgfault(struct UTrapframe *utf)
+ 	//   (see <inc/memlayout.h>).
+ 
+ 	// LAB 4: Your code here.
+-	if (!(uvpd[PDX(addr)] & PTE_P)
+-		|| !(uvpt[PGNUM(addr)] & (PTE_P|PTE_COW))
+-		|| !(err & FEC_WR))
+-		panic("pagefault handler error");
+ 
+ 	// Allocate a new page, map it at a temporary location (PFTEMP),
+ 	// copy the data from the old page to the new page, then move the new
+@@ -37,19 +33,8 @@ pgfault(struct UTrapframe *utf)
+ 	//   You should make three system calls.
+ 
+ 	// LAB 4: Your code here.
+-	if ((r = sys_page_alloc(0, PFTEMP, PTE_P | PTE_W | PTE_U)) < 0)
+-		panic("sys_page_alloc: %e", r);
+ 
+-	memmove(PFTEMP, ROUNDDOWN(addr, PGSIZE), PGSIZE);
+-
+-	if ((r = sys_page_map(0, PFTEMP, 0, ROUNDDOWN(addr, PGSIZE), PTE_P | PTE_W | PTE_U)) < 0)
+-		panic("sys_page_map: %e", r);
+-
+-	memmove(PFTEMP, ROUNDDOWN(addr, PGSIZE), PGSIZE);
+-
+-	if ((r = sys_page_unmap(0, PFTEMP)) < 0)
+-		panic("sys_page_unmap: %e", r);
+-	//panic("pgfault not implemented");
++	panic("pgfault not implemented");
+ }
+ 
+ //
+@@ -67,23 +52,9 @@ static int
+ duppage(envid_t envid, unsigned pn)
+ {
+ 	int r;
+-	int perms = uvpt[pn] & PTE_SYSCALL;
+ 
+ 	// LAB 4: Your code here.
+-	if (uvpt[pn] & (PTE_W | PTE_COW)) {
+-		perms &= ~PTE_W;
+-		perms |= PTE_COW;
+-
+-		if ((r = sys_page_map(0, (void*) (pn*PGSIZE), envid, (void*) (pn*PGSIZE), perms)) < 0)
+-			panic("sys_page_map: %e", r);		
+-
+-		if ((r = sys_page_map(0, (void*) (pn*PGSIZE), 0, (void*) (pn*PGSIZE), perms)) < 0)
+-			panic("sys_page_map: %e", r);		
+-	} else {
+-		if ((r = sys_page_map(0, (void*) (pn*PGSIZE), envid, (void*) (pn*PGSIZE), perms)) < 0)
+-			panic("sys_page_map: %e", r);		
+-	}
+-	//panic("duppage not implemented");
++	panic("duppage not implemented");
+ 	return 0;
+ }
+ 
+@@ -103,101 +74,11 @@ duppage(envid_t envid, unsigned pn)
+ //   Neither user exception stack should ever be marked copy-on-write,
+ //   so you must allocate a new page for the child's user exception stack.
+ //
+-static void
+-dup_or_share(envid_t dstenv, void *va, int perm) {
+-	int r;
+-
+-	//Read only
+-	if ((r = sys_page_alloc(dstenv, va, perm)) < 0)
+-		panic("sys_page_alloc: %e", r);
+-
+-	if (!(perm & PTE_W)) {
+-		if ((r = sys_page_map(0, va, dstenv, va, perm)) < 0)
+-			panic("sys_page_map: %e", r);	
+-	} else {
+-		if ((r = sys_page_map(dstenv, va, 0, UTEMP, perm)) < 0)
+-			panic("sys_page_map: %e", r);
+-		memmove(UTEMP, va, PGSIZE);
+-		if ((r = sys_page_unmap(0, UTEMP)) < 0)
+-			panic("sys_page_unmap: %e", r);
+-	}
+-}
+-
+-envid_t
+-fork_v0(void)
+-{
+-	envid_t envid;
+-	uint8_t *addr;
+-	pte_t pte;
+-	int r;
+-	int perm;
+-
+-	envid = sys_exofork();
+-
+-	if (envid < 0)
+-		panic("sys_exofork: %e", envid);
+-	if (envid == 0) {
+-		thisenv = &envs[ENVX(sys_getenvid())];
+-		return 0;
+-	}
+-
+-	for (addr = 0; addr < (uint8_t*)UTOP; addr += PGSIZE) {
+-		if (uvpd[PDX(addr)] & PTE_P) {
+-			pte = uvpt[PGNUM(addr)];
+-
+-			if (pte & PTE_P) {
+-				perm = pte & PTE_SYSCALL;
+-				dup_or_share(envid, addr, perm);
+-			}
+-		}
+-	}
+-
+-	if ((r = sys_env_set_status(envid, ENV_RUNNABLE)) < 0)
+-		panic("sys_env_set_status: %e", r);
+-
+-	return envid;	
+-}
+-
+ envid_t
+ fork(void)
+ {
+ 	// LAB 4: Your code here.
+-	//panic("fork not implemented");
+-	envid_t envid;
+-	int ret;
+-	unsigned pn;
+-	set_pgfault_handler(&pgfault);
+-
+-	envid = sys_exofork();
+-
+-	if (envid < 0)
+-		panic("sys_exofork: %e", envid);
+-	if (envid == 0) {
+-		thisenv = &envs[ENVX(sys_getenvid())];
+-		return 0;
+-	}
+-
+-	extern void _pgfault_upcall();
+-
+-	if ((ret = sys_page_alloc(envid, (void*) (UXSTACKTOP-PGSIZE), PTE_P | PTE_U | PTE_W)) < 0)
+-		panic("page_alloc error: %e", ret);	
+-
+-	if ((ret = sys_env_set_pgfault_upcall(envid, _pgfault_upcall)) < 0)
+-		panic("pgfault_upcall error: %e", ret);	
+-
+-	for (pn = 0; pn < USTACKTOP; pn += PGSIZE) {
+-		if (uvpd[PDX(pn)] & PTE_P) {
+-			if (uvpt[PGNUM(pn)] & PTE_P)
+-				duppage(envid, pn/PGSIZE);
+-		}
+-	}
+-
+-	if ((ret = sys_env_set_status(envid, ENV_RUNNABLE)) < 0)
+-		panic("sys_env_set_status: %e", ret);
+-
+-	return envid;
+-
+-	//return fork_v0();
++	panic("fork not implemented");
+ }
+ 
+ // Challenge!
+diff --git a/lib/ipc.c b/lib/ipc.c
+index afa096b..2e222b9 100644
+--- a/lib/ipc.c
++++ b/lib/ipc.c
+@@ -23,29 +23,8 @@ int32_t
+ ipc_recv(envid_t *from_env_store, void *pg, int *perm_store)
+ {
+ 	// LAB 4: Your code here.
+-	int ret = sys_ipc_recv(pg);
+-
+-	if (from_env_store)
+-		*from_env_store = thisenv->env_ipc_from;
+-
+-	if (pg && perm_store)
+-		*perm_store = thisenv->env_ipc_perm;
+-
+-	if (!pg)
+-		pg = (void*) -1;
+-
+-	if (ret < 0) {
+-		if (from_env_store)
+-			*from_env_store = 0;
+-		if (perm_store)
+-			*perm_store = 0;
+-
+-		return ret;
+-	}
+-
+-	return thisenv->env_ipc_value;
+-	//panic("ipc_recv not implemented");
+-	//return 0;
++	panic("ipc_recv not implemented");
++	return 0;
+ }
+ 
+ // Send 'val' (and 'pg' with 'perm', if 'pg' is nonnull) to 'toenv'.
+@@ -60,21 +39,7 @@ void
+ ipc_send(envid_t to_env, uint32_t val, void *pg, int perm)
+ {
+ 	// LAB 4: Your code here.
+-	int ret;
+-
+-	/*do {
+-		ret = sys_ipc_try_send(to_env, val, pg ? pg : 15, perm);
+-
+-		sys_yield();
+-	} while (ret == -E_IPC_NOT_RECV);*/
+-
+-	while ((ret = sys_ipc_try_send(to_env, val, pg ? pg : (void*) -1, perm)) == -E_IPC_NOT_RECV) {
+-		sys_yield();
+-	}
+-
+-	if (ret == E_BAD_ENV || ret == E_INVAL || ret == E_NO_MEM)
+-		panic("ipc panic");
+-	//panic("ipc_send not implemented");
++	panic("ipc_send not implemented");
+ }
+ 
+ // Find the first environment of the given type.  We'll use this to
+diff --git a/lib/pfentry.S b/lib/pfentry.S
+index 272687f..f40aeeb 100644
+--- a/lib/pfentry.S
++++ b/lib/pfentry.S
+@@ -65,28 +65,18 @@ _pgfault_upcall:
+ 	// ways as registers become unavailable as scratch space.
+ 	//
+ 	// LAB 4: Your code here.
+-	subl $4, 48(%esp)
+-	movl 48(%esp), %ecx //%esp - 4
+-	movl 40(%esp), %eax //%eip
+-	movl %eax, (%ecx) //Push %eip onto stack
+ 
+ 	// Restore the trap-time registers.  After you do this, you
+ 	// can no longer modify any general-purpose registers.
+ 	// LAB 4: Your code here.
+-	addl $8, %esp // end of registers
+-	popal //restore registers
+ 
+ 	// Restore eflags from the stack.  After you do this, you can
+ 	// no longer use arithmetic operations or anything else that
+ 	// modifies eflags.
+ 	// LAB 4: Your code here.
+-	addl $4, %esp
+-	popfl //restore eflags
+ 
+ 	// Switch back to the adjusted trap-time stack.
+ 	// LAB 4: Your code here.
+-	popl %esp //Stack switch - trap-time esp
+ 
+ 	// Return to re-execute the instruction that faulted.
+ 	// LAB 4: Your code here.
+-	ret
+diff --git a/lib/pgfault.c b/lib/pgfault.c
+index 3f91cde..a975518 100644
+--- a/lib/pgfault.c
++++ b/lib/pgfault.c
+@@ -29,11 +29,7 @@ set_pgfault_handler(void (*handler)(struct UTrapframe *utf))
+ 	if (_pgfault_handler == 0) {
+ 		// First time through!
+ 		// LAB 4: Your code here.
+-		if ((r = sys_page_alloc(0, (void*)(UXSTACKTOP - PGSIZE), PTE_W | PTE_U | PTE_P)) < 0)
+-			panic("set_pgfault_handler error!");
+-		
+-		if ((r = sys_env_set_pgfault_upcall(0, _pgfault_upcall)) < 0)
+-			panic("sys_env_set_pgfault_upcall error!");
++		panic("set_pgfault_handler not implemented");
+ 	}
+ 
+ 	// Save handler pointer for assembly to call.
+diff --git a/user/yield.c b/user/yield.c
+index 718fe46..6f45bdb 100644
+--- a/user/yield.c
++++ b/user/yield.c
+@@ -7,16 +7,11 @@ umain(int argc, char **argv)
+ {
+ 	int i;
+ 
+-	//cprintf("Hello, I am environment %08x.\n", thisenv->env_id);
+-	cprintf("Hello, I am environment %08x, cpu %d.\n",
+-    thisenv->env_id, thisenv->env_cpunum);
++	cprintf("Hello, I am environment %08x.\n", thisenv->env_id);
+ 	for (i = 0; i < 5; i++) {
+ 		sys_yield();
+-		/*cprintf("Back in environment %08x, iteration %d.\n",
+-			thisenv->env_id, i);*/
+-		cprintf("Back in environment %08x, iteration %d, cpu %d.\n",
+-      		thisenv->env_id, i, thisenv->env_cpunum);
+-
++		cprintf("Back in environment %08x, iteration %d.\n",
++			thisenv->env_id, i);
+ 	}
+ 	cprintf("All done in environment %08x.\n", thisenv->env_id);
+ }
