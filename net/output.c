@@ -15,10 +15,10 @@ output(envid_t ns_envid)
 	int r;
 
 	while (true) {
-		int32_t value = ipc_recv(&ns_envid, (void*) &nsipcbuf, NULL);
+		int32_t value = ipc_recv(&ns_envid, (void*) REQVA, NULL);
 
 		if (value == NSREQ_OUTPUT) {
-			struct jif_pkt* pkt = &nsipcbuf.pkt;
+			struct jif_pkt* pkt = (struct jif_pkt*) REQVA;
 
 			if ((r = sys_transmit_package((struct package_desc*) &(pkt->jp_data), pkt->jp_len)) < 0)
 				continue;
