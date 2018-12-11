@@ -61,13 +61,14 @@ struct receive_desc_tail {
 int attach_initialize_e1000(struct pci_func *pcif);
 /*
 	Returns 0 on success
-	-EMPTY if transmit queue is full
-	-MAX_SIZE if trying to transmit a package with more bytes than MAX_BYTES_ETHERNET
+	-E_RETRY if transmit queue is full
+	-E_INVAL if trying to transmit a package with more bytes than MAX_BYTES_ETHERNET
 */
 int transmit_packet(struct package_desc* package, ssize_t size);
 /*
 	Returns bytes received on success
-	-EMPTY if receive queue is empty
+	-E_RETRY if receive queue is empty
+	-E_NO_MEM if length of the packet is larger than MAX_BYTES_ETHERNET
 */
 int receive_packet(struct package_desc* package);
 
