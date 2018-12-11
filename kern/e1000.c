@@ -81,9 +81,9 @@ volatile uint32_t *base_e1000;
 #define RDLEN (16*MIN_TD)
 
 //Only use in this file
-static struct tx_desc transmit_desc[TDLEN];
+static struct tx_desc transmit_desc[TDLEN] __attribute__((aligned(16)));
 static struct package_desc transmit_package[TDLEN];
-static struct rx_desc receive_desc[RDLEN];
+static struct rx_desc receive_desc[RDLEN] __attribute__((aligned(16)));
 static struct package_desc receive_package[RDLEN];
 
 int attach_initialize_e1000(struct pci_func *pcif) {
