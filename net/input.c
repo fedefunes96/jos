@@ -3,6 +3,7 @@
 #include <inc/lib.h>
 
 extern union Nsipc nsipcbuf;
+extern union Nsipc nsipcbuf2;
 
 void
 input(envid_t ns_envid)
@@ -16,23 +17,35 @@ input(envid_t ns_envid)
 	// reading from it for a while, so don't immediately receive
 	// another packet in to the same physical page.
 
-	//First alloc a page
 	int r;
+	int i = 0;
 
 	if ((r = sys_page_alloc(0, &nsipcbuf, PTE_SYSCALL)) < 0)
 		panic("Can't alloc a page");
+	if ((r = sys_page_alloc(0, &nsipcbuf2, PTE_SYSCALL)) < 0)
+		panic("Can't alloc a page");
 
 	while (true) {
-		struct jif_pkt* pkt = &nsipcbuf.pkt;
+		if (i) {
+			struct jif_pkt* pkt = &nsipcbuf.pkt;
 
-		if ((r = sys_receive_package((struct package_desc*) &(pkt->jp_data))) < 0)
-			continue;
+			if ((r = sys_receive_package((struct package_desc*) &(pkt->jp_data))) < 0)
+				continue;
 
-		pkt->jp_len = r;
+			pkt->jp_len = r;
 
-		ipc_send(ns_envid, NSREQ_INPUT, &nsipcbuf, PTE_SYSCALL);
+			ipc_send(ns_envid, NSREQ_INPUT, &nsipcbuf, PTE_SYSCALL);
+		} else {
+			struct jif_pkt* pkt = &nsipcbuf2.pkt;
 
-		for (int i = 0; i < 20; i++)
-			sys_yield();
+			if ((r = sys_receive_package((struct package_desc*) &(pkt->jp_data))) < 0)
+				continue;
+
+			pkt->jp_len = r;
+
+			ipc_send(ns_envid, NSREQ_INPUT, &nsipcbuf2, PTE_SYSCALL);
+		}
+
+		i = (i + 1) % 2;
 	}
 }

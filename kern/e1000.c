@@ -5,6 +5,7 @@
 #include <inc/stdio.h>
 #include <kern/pmap.h>
 #include <inc/string.h>
+#include <inc/error.h>
 
 #define E1000_STATUS 0x00008
 #define E1000_TDLEN 0x03808
@@ -142,7 +143,7 @@ int attach_initialize_e1000(struct pci_func *pcif) {
 	//You can simply hard-code QEMU's default MAC address of 52:54:00:12:34:56
 	base_e1000[E1000_RAL/sizeof(uint32_t)] = 0x12005452;
 	//"Address Valid" bit in RAH
-	base_e1000[E1000_RAH/sizeof(uint32_t)] = 0x00005634 | E1000_RAH_AV;
+	base_e1000[E1000_RAH/sizeof(uint32_t)] = 0x5634 | E1000_RAH_AV;
 
 	//Initialize the MTA (Multicast Table Array) to 0b
 	base_e1000[E1000_MTA/sizeof(uint32_t)] = 0;
@@ -228,14 +229,14 @@ int transmit_packet(struct package_desc* package, ssize_t size) {
 	//Check if next descriptor is free
 	if (!(transmit_desc[tail->tdt].status & E1000_TXD_STAT_DD)) {
 		//transmit queue is full?
-		return -RETRY;
+		return -E_RETRY;
 	}
 
 	//Sending more than max bytes
 	if (size > MAX_BYTES_ETHERNET)
-		return -MAX_SIZE;
+		return -E_INVAL;
 
-	//Copying the packet data into the next packet buffer
+	//Moving the packet data into the next packet buffer
 	memmove((void*) &transmit_package[tail->tdt], package->bytes, size);
 
 	transmit_desc[tail->tdt].length = size;
@@ -257,11 +258,13 @@ int receive_packet(struct package_desc* package) {
 	uint16_t head_value = (tail->rdt + 1) % RDLEN;
 
 	//Check if receive queue is empty
-	if (!(receive_desc[head_value].status & E1000_RXD_STAT_DD)) {
-		return -EMPTY;
-	}
+	if (!(receive_desc[head_value].status & E1000_RXD_STAT_DD))
+		return -E_RETRY;
 
-	//Copying the buffer packet to package
+	if (receive_desc[head_value].length > MAX_BYTES_ETHERNET)
+		return -E_NO_MEM;
+
+	//Moving the buffer packet to package
 	memmove(package->bytes, (void*) &receive_package[head_value], receive_desc[head_value].length);
 
 	receive_desc[head_value].status &= ~E1000_RXD_STAT_DD;

@@ -19,7 +19,8 @@
 static int
 sys_transmit_package(struct package_desc* package, ssize_t size)
 {
-	user_mem_assert(curenv, (const void*) package, size, 0);
+	//The same to check size
+	user_mem_assert(curenv, (const void*) package, MAX_BYTES_ETHERNET, 0);
 
 	return transmit_packet(package, size);
 }
@@ -27,6 +28,8 @@ sys_transmit_package(struct package_desc* package, ssize_t size)
 static int
 sys_receive_package(struct package_desc* package)
 {
+	user_mem_assert(curenv, (const void*) package, MAX_BYTES_ETHERNET, PTE_W);
+
 	return receive_packet(package);
 }
 

@@ -5,12 +5,6 @@
 
 #define MAX_BYTES_ETHERNET 1518
 
-enum {
-	RETRY = 1,
-	MAX_SIZE,
-	EMPTY
-};
-
 //Exercise 5
 struct tx_desc {
 	uint64_t addr;
